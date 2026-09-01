@@ -1,0 +1,135 @@
+# =====================================================================
+# Environment configuration: city geometry, drone, sensors, actions,
+# reward weights and episode rules.
+#
+# This file is the single source of truth for the simulation. It is
+# included by dqn.yaml and experiment.yaml via their `defaults:` list,
+# so baseline and proposed algorithms always share identical dynamics.
+# =====================================================================
+
+city:
+  # --- geometry (metres) ---
+  width: 60.0                 # city extent along x, centred on origin
+  depth: 60.0                 # city extent along y, centred on origin
+  max_altitude: 25.0          # ceiling of the navigable volume
+  block_size: 14.0            # side length of one city block
+  road_width: 6.0             # guaranteed-free corridor between blocks
+  plots_per_block: 2          # block subdivision -> plots_per_block^2 plots
+  build_probability: 0.72     # chance a plot receives a building
+  building_min_height: 4.0
+  building_max_height: 18.0
+  building_margin: 0.8        # minimum inset of a footprint within its plot
+  center_height_bias: 0.45    # 0 = uniform skyline, 1 = strong downtown
+  min_buildings: 6            # regenerate if a draw yields fewer than this
+
+  # --- procedural generalisation: disjoint seed pools ---
+  # Test seeds must never be used for training. These ranges are validated
+  # for overlap at load time (utils.reproducibility.SeedRanges).
+  train_seed_start: 0
+  train_seed_end: 799
+  validation_seed_start: 800
+  validation_seed_end: 899
+  test_seed_start: 900
+  test_seed_end: 999
+
+drone:
+  max_speed: 3.0              # m/s
+  max_yaw_rate: 1.2           # rad/s
+  velocity_smoothing: 0.55    # 0 = instant response, ->1 = heavy inertia
+  collision_radius: 0.45      # m, sphere used for collision tests
+  battery_capacity: 100.0     # arbitrary battery units
+  hover_energy_per_second: 0.55
+  manoeuvre_energy_per_second: 0.9
+  spawn_altitude_min: 1.5
+  spawn_altitude_max: 6.0
+  min_altitude: 0.35          # below this counts as hitting the ground
+  dt: 0.15                    # simulated seconds per environment step
+
+sensors:
+  max_range: 12.0             # metres
+  directions:                 # body-frame rays; see sensors.DEFAULT_RAY_DIRECTIONS
+    - front
+    - front_left
+    - front_right
+    - left
+    - right
+    - up
+    - down
+
+actions:
+  # Restrict or extend the discrete action set here. Omit `use` for all nine.
+  use:
+    - hover
+    - forward
+    - backward
+    - left
+    - right
+    - ascend
+    - descend
+    - yaw_left
+    - yaw_right
+
+reward:
+  # Terminal events
+  target: 100.0
+  collision: -100.0
+  battery_failure: -100.0
+  out_of_bounds: -50.0
+  timeout: 0.0
+  # Per-step shaping
+  step: -0.1                  # constant time penalty
+  energy: -0.05               # multiplied by battery units consumed
+  progress: 1.0               # potential-based: w * (d_prev - d_now)
+
+  # Obstacle avoidance. These are sized against the progress term, not picked
+  # by feel: at max speed the drone closes 3.0 m/s * 0.15 s = 0.45 m per step,
+  # so progress pays at most +0.45. The proximity penalty must exceed that
+  # before impact, otherwise flying straight into a building is net positive on
+  # every step and the agent learns to beeline into walls (measured: it did).
+  #   clearance 3.0 m (road centre) ->  0.00   total +0.34
+  #   clearance 2.0 m               -> -0.67   total -0.33   <- turns negative
+  #   clearance 1.0 m               -> -1.33   total -1.00
+  proximity: -2.0             # penalty weight inside safety_distance
+  safety_distance: 3.0        # metres of building clearance before penalising
+
+  # Ground clearance is handled separately from building clearance, so that
+  # flying low over an open road is not confused with hugging a wall.
+  altitude_penalty: -0.3
+  min_safe_altitude: 2.0
+
+environment:
+  max_steps: 400              # truncation limit (NOT termination)
+  target_radius: 2.0          # delivery tolerance, metres
+  min_start_target_distance: 18.0
+  # Starts and targets are placed at least this far from any building, so a
+  # delivery point never sits inside reward.safety_distance. Leaves ~500-800
+  # candidate cells per city, which is ample.
+  spawn_clearance: 2.5
+  target_altitude_min: 1.5
+  target_altitude_max: 8.0
+  collision_substeps: 4       # swept-collision samples, prevents tunnelling
+  seed_pool: train            # train | validation | test
+  debug: false                # print per-step reward decomposition
+  fixed_city_seed: null       # pin one city for the whole run
+
+render:
+  mode: gui                   # gui | direct
+  show_rays: false
+  show_trail: true
+  trail_length: 400
+  show_target_marker: true
+  show_start_marker: true
+  camera_distance: 34.0
+  camera_yaw: 45.0
+  camera_pitch: -38.0
+  # Initial camera behaviour: free | follow | orbit | cinematic.
+  # Keyboard: arrows pan, Shift/Ctrl raise/lower, PgUp/PgDn zoom,
+  # Alt+arrows change angle, F1-F4 switch mode, F5 resets.
+  camera_mode: free
+  follow_drone: false        # legacy switch; camera_mode takes precedence
+  interactive_camera: true   # false disables keyboard control entirely
+  show_camera_help: true     # print the key bindings into the GUI overlay
+  camera_fov: 60.0
+  realtime_factor: 1.0
+  width: 1280
+  height: 720

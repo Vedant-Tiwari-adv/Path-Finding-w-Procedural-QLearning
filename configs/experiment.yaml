@@ -1,0 +1,47 @@
+# =====================================================================
+# Experiment / evaluation protocol (Phase 12/14).
+#
+# Defines the fixed comparison harness that any algorithm must be run
+# through. Only `experiment.algorithm` should differ between the DQN
+# baseline and a future proposed method - seeds, budgets, reward and
+# observation space are pinned here so the comparison stays fair.
+# =====================================================================
+
+defaults:
+  - environment.yaml
+
+experiment:
+  name: baseline_vs_proposed
+  seed: 42
+  output_dir: outputs
+
+evaluation:
+  episodes: 100               # episodes per seed pool
+  deterministic: true         # greedy policy (epsilon = eval_epsilon)
+  eval_epsilon: 0.0
+  pools:                      # every pool the evaluator sweeps
+    - train
+    - validation
+    - test
+  record_trajectories: true
+  max_trajectories: 20        # trajectories saved per pool
+
+# Fairness contract: any algorithm compared against the DQN baseline must
+# use exactly these values. `scripts/evaluate.py --compare` asserts that
+# the checkpoints it loads were trained under matching settings.
+fairness:
+  shared_environment_config: configs/environment.yaml
+  training_budget_episodes: 3000
+  evaluation_episodes: 100
+  evaluation_seed: 12345      # seeds the evaluation episode sampler
+  observation_space: structured_v1
+  reward_version: v1
+
+comparison:
+  # Checkpoints replayed side by side by scripts/compare_learning.py.
+  # `random` is the untrained baseline required by Phase 11.
+  stages:
+    - {label: "Random policy",   checkpoint: null}
+    - {label: "Early DQN",       checkpoint: outputs/checkpoints/dqn_episode_250.pt}
+    - {label: "Mid-training DQN", checkpoint: outputs/checkpoints/dqn_episode_1500.pt}
+    - {label: "Final DQN",       checkpoint: outputs/checkpoints/dqn_best.pt}

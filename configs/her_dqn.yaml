@@ -1,0 +1,92 @@
+# =====================================================================
+# Proposed algorithm (Phase 14): hindsight-relabelled DQN.
+#
+# Inherits every dynamics setting from environment.yaml, exactly as
+# dqn.yaml does, so baseline and proposed differ ONLY in the agent.
+# Do not add environment/reward overrides to this file - that would
+# break the fairness contract in experiment.yaml.
+#
+#   python scripts/train.py --config configs/her_dqn.yaml
+# =====================================================================
+
+defaults:
+  - environment.yaml
+
+experiment:
+  name: her_dqn
+  algorithm: her_dqn          # resolved by agents.registry.build_agent
+  seed: 42
+  output_dir: outputs
+  deterministic_torch: false
+
+training:
+  total_episodes: 4000
+  max_steps_per_episode: 400
+  learning_starts: 2000
+  train_frequency: 2
+  gradient_steps: 1
+  eval_frequency: 250
+  eval_episodes: 30
+  checkpoint_frequency: 250
+  log_frequency: 10
+  save_trajectories: false
+  device: auto
+
+her_dqn:
+  # --- optimisation ---
+  # Lower than the baseline's 5e-4. Prioritised replay already amplifies the
+  # effective step size on high-error transitions, so keeping the raw rate
+  # unchanged would compound two sources of aggressiveness.
+  learning_rate: 0.0003
+  gamma: 0.995                # unchanged from the baseline: same task horizon
+  batch_size: 128
+  max_grad_norm: 10.0
+  huber_delta: 1.0
+
+  # --- replay ---
+  # Larger than the baseline's 200k because hindsight relabelling inserts
+  # (1 + her_k) windows per environment step, so the buffer drains ~5x faster
+  # in wall-clock terms and a 200k buffer would hold under an hour of experience.
+  buffer_size: 400000
+  min_replay_size: 5000
+
+  # --- target network ---
+  # Polyak averaging replaces the baseline's hard copy every 1000 gradient
+  # steps. The baseline's Q estimates drifted upward without bound; a target
+  # that moves smoothly removes the periodic discontinuity in the regression
+  # target that interacts badly with that drift.
+  soft_update_tau: 0.005
+  target_update_frequency: 1000   # ignored while soft_update_tau > 0
+
+  # --- exploration ---
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay_steps: 400000
+
+  # --- architecture ---
+  hidden_sizes: [256, 256]        # same capacity as the baseline
+  activation: relu
+  double_dqn: true                # ablation: false
+  dueling: true                   # ablation: false
+  layer_norm: true                # ablation: false
+
+  # --- n-step returns ---
+  # 3 is the standard Rainbow value. A successful delivery takes 110-220 steps,
+  # so this cuts the credit-assignment chain roughly threefold without the
+  # off-policy bias that larger n incurs under epsilon-greedy data.
+  n_step: 3                       # ablation: 1
+
+  # --- prioritised replay ---
+  prioritized: true               # ablation: false
+  per_alpha: 0.6
+  per_beta_start: 0.4
+  per_beta_end: 1.0
+  per_beta_steps: 800000
+  per_epsilon: 0.001
+
+  # --- hindsight experience replay ---
+  # The core contribution. Successes were 5-15% of baseline episodes, so almost
+  # every trajectory carried no arrival signal at all; relabelling turns each
+  # one into four demonstrations of reaching a position the drone did occupy.
+  her_enabled: true               # ablation: false
+  her_k: 4                        # ablation: 0, 2, 8

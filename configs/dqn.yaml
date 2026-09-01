@@ -1,0 +1,73 @@
+# =====================================================================
+# DQN baseline (Phase 8/9).
+#
+# Inherits all dynamics from environment.yaml so that this baseline and any
+# future proposed algorithm are compared under identical conditions.
+#
+#   python scripts/train.py --config configs/dqn.yaml
+# =====================================================================
+
+defaults:
+  - environment.yaml
+
+experiment:
+  name: dqn_baseline
+  algorithm: dqn             # resolved by agents.registry.build_agent
+  seed: 42                   # process seed (torch/numpy/random)
+  output_dir: outputs
+  deterministic_torch: false
+
+training:
+  total_episodes: 4000
+  max_steps_per_episode: 400  # mirrors environment.max_steps
+  learning_starts: 2000       # env steps collected before the first update
+  # One gradient step every 2 env steps. With batch_size 128 that replays 64
+  # transitions per env step - still 8x the replay ratio of Nature DQN (32/4),
+  # while roughly halving wall-clock time, since the update dominates the step.
+  train_frequency: 2
+  gradient_steps: 1           # updates performed per train_frequency trigger
+  eval_frequency: 250         # episodes between validation sweeps
+  eval_episodes: 30           # validation episodes per sweep
+  checkpoint_frequency: 250   # episodes between periodic checkpoints
+  log_frequency: 10           # episodes between console progress lines
+  save_trajectories: false
+  device: auto                # auto | cpu | cuda
+
+dqn:
+  # --- optimisation ---
+  learning_rate: 0.0005
+  # The discount horizon must cover the *task* horizon. A successful delivery
+  # takes 110-220 steps, but gamma=0.99 gives an effective horizon of only
+  # 1/(1-gamma) = 100 steps, which discounts the +100 arrival bonus to 13.4 when
+  # seen from 200 steps out - comparable to a couple of steps of progress
+  # reward. Measured consequence: the agent optimised local progress, stalled at
+  # the first building it had to detour around, and timed out 83% of the time
+  # with a mean closest approach of 14.9 m from a 32.5 m start.
+  # gamma=0.995 gives a 200-step horizon, matching a successful episode.
+  gamma: 0.995
+  batch_size: 128
+  max_grad_norm: 10.0
+  huber_delta: 1.0            # smooth_l1 beta; robust to reward outliers
+
+  # --- replay ---
+  buffer_size: 200000
+  min_replay_size: 2000       # no updates until the buffer holds this many
+
+  # --- target network ---
+  target_update_frequency: 1000   # gradient steps between hard target syncs
+  soft_update_tau: 0.0            # >0 switches to Polyak averaging instead
+
+  # --- exploration ---
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  # Linear decay in env steps, ~35% of the expected ~1.1M-step budget. Escaping
+  # the "fly safely, never arrive" local optimum requires discovering that a
+  # detour around a building pays off later, so exploration has to outlast the
+  # point where obstacle avoidance is solved (that happened by ~200k steps).
+  epsilon_decay_steps: 400000
+
+  # --- architecture ---
+  hidden_sizes: [256, 256]
+  activation: relu
+  double_dqn: false           # plain DQN baseline; true = Double DQN
+  dueling: false              # false = single-stream MLP head

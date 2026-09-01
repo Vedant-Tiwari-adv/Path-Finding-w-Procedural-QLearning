@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drone-rl"
+version = "0.1.0"
+description = "Autonomous drone navigation in procedurally generated 3D cities using deep reinforcement learning"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Advanced Machine Learning Project" }]
+
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "gymnasium>=0.29",
+    "torch>=2.2",
+    "pybullet>=3.2.5",
+    "pyyaml>=6.0",
+    "pandas>=2.1",
+    "matplotlib>=3.8",
+    "tensorboard>=2.15",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "pytest-cov>=4.1"]
+video = ["imageio>=2.34", "imageio-ffmpeg>=0.4.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "gui: tests that require a PyBullet GUI window (deselect with '-m \"not gui\"')",
+    "slow: long-running tests (deselect with '-m \"not slow\"')",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
