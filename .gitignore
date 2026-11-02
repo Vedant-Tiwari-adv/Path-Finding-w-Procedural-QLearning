@@ -21,6 +21,11 @@ outputs/trajectories/**
 outputs/videos/**
 outputs/evaluation/**
 !outputs/**/.gitkeep
+# Trained models shipped for demos on other machines
+!outputs/checkpoints/dqn_best.pt
+!outputs/checkpoints/dqn_final.pt
+!outputs/checkpoints/her_dqn_best.pt
+!outputs/checkpoints/her_dqn_final.pt
 
 # Editors / OS
 .vscode/
