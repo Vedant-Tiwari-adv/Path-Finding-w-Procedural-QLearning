@@ -21,6 +21,7 @@ Unreal, ML-Agents, AirSim or Isaac Sim.
 - [Quick start](#quick-start)
 - [How it works](#how-it-works)
 - [Commands](#commands)
+- [Pretrained checkpoints](#pretrained-checkpoints)
 - [Camera controls](#camera-controls)
 - [Results](#results)
 - [Configuration](#configuration)
@@ -158,6 +159,48 @@ Any config value can be overridden without editing YAML:
 python scripts/train.py --config configs/dqn.yaml `
   --set dqn.learning_rate=1e-4 reward.collision=-150 city.build_probability=0.5
 ```
+
+---
+
+## Pretrained checkpoints
+
+Four trained models are committed, so a fresh clone can run the demos without
+retraining:
+
+| File | What it is |
+|---|---|
+| `outputs/checkpoints/dqn_best.pt` | Baseline DQN, highest validation success rate |
+| `outputs/checkpoints/dqn_final.pt` | Baseline DQN, weights at the end of training |
+| `outputs/checkpoints/her_dqn_best.pt` | HER-DQN, highest validation success rate |
+| `outputs/checkpoints/her_dqn_final.pt` | HER-DQN, weights at the end of training |
+
+Everything else in `outputs/checkpoints/` (the periodic `*_episode_N.pt`
+snapshots and `*_last.pt`) stays gitignored; `.gitignore` whitelists exactly
+the four files above.
+
+These work on a fresh clone as-is:
+
+```powershell
+python scripts/demo.py --checkpoint outputs/checkpoints/dqn_best.pt
+python scripts/demo.py --checkpoint outputs/checkpoints/her_dqn_best.pt
+python scripts/evaluate.py --checkpoint outputs/checkpoints/dqn_best.pt --episodes 100
+python scripts/arena.py         # defaults race her_dqn_best vs dqn_best
+python scripts/compare_live.py  # defaults compare her_dqn_best vs dqn_best
+```
+
+These need the episode snapshots, which are not committed, and only work after
+a local `train.py` run:
+
+- `scripts/compare_learning.py` and `record_video.py --all-stages` find no
+  intermediate stages, so they show only the random policy and `dqn_best.pt`.
+- The "Early DQN" and "Mid-training DQN" entries in `configs/experiment.yaml`
+  point at `dqn_episode_250.pt` / `dqn_episode_1500.pt`.
+- The `compare_live.py --checkpoint-b outputs/checkpoints/her_dqn_episode_500.pt`
+  example in that script's docstring.
+
+To ship a newly trained model, retrain (which overwrites these four files), then
+commit them; to ship a different checkpoint, add a `!outputs/checkpoints/<name>.pt`
+line to `.gitignore`.
 
 ---
 
